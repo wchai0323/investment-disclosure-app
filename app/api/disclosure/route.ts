@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchDisclosures } from '@/lib/dart';
 import { Disclosure } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const corpCode = searchParams.get('corpCode') || undefined;
   const pageNo = parseInt(searchParams.get('page') || '1');
 
   try {
-    const rawList = await fetchDisclosures({ corpCode, page_no: pageNo, page_count: 20 });
+    const { list: rawList, source } = await fetchDisclosures({ corpCode, page_no: pageNo, page_count: 20 });
 
     // Map DART snake_case fields → app Disclosure type
     const disclosures: Disclosure[] = rawList
@@ -25,9 +27,10 @@ export async function GET(request: NextRequest) {
         rmk: item.rm,
       }));
 
-    return NextResponse.json({ disclosures, total: disclosures.length });
+    console.log(`[/api/disclosure] source=${source} count=${disclosures.length}`);
+    return NextResponse.json({ disclosures, total: disclosures.length, _source: source });
   } catch (error) {
-    console.error('Disclosure API error:', error);
+    console.error('[/api/disclosure] error:', error);
     return NextResponse.json({ error: 'Failed to fetch disclosures' }, { status: 500 });
   }
 }

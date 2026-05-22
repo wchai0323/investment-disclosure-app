@@ -2,6 +2,8 @@ import { DartApiResponse, DartDisclosure } from './types';
 
 const DART_BASE_URL = 'https://opendart.fss.or.kr/api';
 
+export type DisclosureSource = 'real' | 'mock';
+
 export async function fetchDisclosures(params?: {
   corpCode?: string;
   bgn_de?: string;
@@ -9,14 +11,17 @@ export async function fetchDisclosures(params?: {
   pblntf_ty?: string;
   page_no?: number;
   page_count?: number;
-}): Promise<DartDisclosure[]> {
+}): Promise<{ list: DartDisclosure[]; source: DisclosureSource }> {
   const apiKey = process.env.DART_API_KEY;
+
+  // ── Guard: no key or placeholder ─────────────────────────────────────────
   if (!apiKey || apiKey.startsWith('your_')) {
-    return getMockDisclosures();
+    console.log('[DART] DART_API_KEY not set — returning mock data');
+    return { list: getMockDisclosures(), source: 'mock' };
   }
+  console.log(`[DART] DART_API_KEY found (${apiKey.length} chars, starts: ${apiKey.slice(0, 4)})`);
 
   const today = new Date();
-  // Look back 14 days to account for weekends/holidays where DART has no filings
   const end_de = params?.end_de || formatDate(today);
   const bgn_de = params?.bgn_de || formatDate(new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000));
 
@@ -29,23 +34,37 @@ export async function fetchDisclosures(params?: {
   });
 
   if (params?.corpCode) searchParams.set('corp_code', params.corpCode);
-  // Filter to material disclosures: 주요사항보고(B) + 거래소공시(I) + 정기공시(A)
   if (params?.pblntf_ty) searchParams.set('pblntf_ty', params.pblntf_ty);
 
+  const url = `${DART_BASE_URL}/list.json?${searchParams}`;
+  console.log(`[DART] GET ${url.replace(apiKey, '****')} (bgn_de=${bgn_de} end_de=${end_de})`);
+
   try {
-    const res = await fetch(`${DART_BASE_URL}/list.json?${searchParams}`, {
-      next: { revalidate: 900 },
-    });
-    if (!res.ok) throw new Error(`DART API ${res.status}`);
+    const res = await fetch(url, { cache: 'no-store' });
+    console.log(`[DART] HTTP ${res.status} ${res.statusText}`);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
     const data: DartApiResponse = await res.json();
-    if (data.status !== '000') {
-      console.warn('DART API non-zero status:', data.status, data.message);
-      return getMockDisclosures();
+    console.log(`[DART] status=${data.status} message="${data.message}" total_count=${data.total_count}`);
+
+    if (data.status === '013') {
+      // "조회된 데이터가 없습니다" — valid response, just no filings in range
+      console.log('[DART] No filings in date range — returning mock data');
+      return { list: getMockDisclosures(), source: 'mock' };
     }
-    return data.list || [];
+
+    if (data.status !== '000') {
+      console.error(`[DART] API error status=${data.status} message="${data.message}"`);
+      return { list: getMockDisclosures(), source: 'mock' };
+    }
+
+    const list = data.list || [];
+    console.log(`[DART] Got ${list.length} real disclosures`);
+    return { list, source: 'real' };
   } catch (err) {
-    console.error('DART fetchDisclosures error:', err);
-    return getMockDisclosures();
+    console.error('[DART] fetchDisclosures error:', err);
+    return { list: getMockDisclosures(), source: 'mock' };
   }
 }
 
