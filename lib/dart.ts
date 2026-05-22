@@ -11,13 +11,14 @@ export async function fetchDisclosures(params?: {
   page_count?: number;
 }): Promise<DartDisclosure[]> {
   const apiKey = process.env.DART_API_KEY;
-  if (!apiKey || apiKey === 'your_dart_api_key_here') {
+  if (!apiKey || apiKey.startsWith('your_')) {
     return getMockDisclosures();
   }
 
   const today = new Date();
-  const bgn_de = params?.bgn_de || formatDate(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000));
+  // Look back 14 days to account for weekends/holidays where DART has no filings
   const end_de = params?.end_de || formatDate(today);
+  const bgn_de = params?.bgn_de || formatDate(new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000));
 
   const searchParams = new URLSearchParams({
     crtfc_key: apiKey,
@@ -28,24 +29,29 @@ export async function fetchDisclosures(params?: {
   });
 
   if (params?.corpCode) searchParams.set('corp_code', params.corpCode);
+  // Filter to material disclosures: 주요사항보고(B) + 거래소공시(I) + 정기공시(A)
   if (params?.pblntf_ty) searchParams.set('pblntf_ty', params.pblntf_ty);
 
   try {
     const res = await fetch(`${DART_BASE_URL}/list.json?${searchParams}`, {
       next: { revalidate: 900 },
     });
-    if (!res.ok) throw new Error(`DART API error: ${res.status}`);
+    if (!res.ok) throw new Error(`DART API ${res.status}`);
     const data: DartApiResponse = await res.json();
-    if (data.status !== '000') return getMockDisclosures();
+    if (data.status !== '000') {
+      console.warn('DART API non-zero status:', data.status, data.message);
+      return getMockDisclosures();
+    }
     return data.list || [];
-  } catch {
+  } catch (err) {
+    console.error('DART fetchDisclosures error:', err);
     return getMockDisclosures();
   }
 }
 
 export async function fetchDisclosureDocument(rcpNo: string): Promise<string> {
   const apiKey = process.env.DART_API_KEY;
-  if (!apiKey || apiKey === 'your_dart_api_key_here') {
+  if (!apiKey || apiKey.startsWith('your_')) {
     return getMockDisclosureText(rcpNo);
   }
 
@@ -54,10 +60,12 @@ export async function fetchDisclosureDocument(rcpNo: string): Promise<string> {
       `${DART_BASE_URL}/document.xml?crtfc_key=${apiKey}&rcept_no=${rcpNo}`,
       { next: { revalidate: 3600 } }
     );
-    if (!res.ok) throw new Error(`DART document API error: ${res.status}`);
+    if (!res.ok) throw new Error(`DART document API ${res.status}`);
     const text = await res.text();
+    // Strip XML/HTML tags, collapse whitespace, truncate for Claude context
     return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 3000);
-  } catch {
+  } catch (err) {
+    console.error('DART fetchDisclosureDocument error:', err);
     return getMockDisclosureText(rcpNo);
   }
 }
@@ -69,84 +77,92 @@ function formatDate(date: Date): string {
 function getMockDisclosures(): DartDisclosure[] {
   return [
     {
-      rcpNo: '20260521001234',
-      corpName: '에이피알',
-      stockCode: '352480',
-      corpCls: 'K',
-      reportNm: '잠정실적(공정공시)',
-      rceptDt: '20260521',
-      flrNm: '에이피알',
-      rmk: '유',
+      rcept_no: '20260521001234',
+      corp_name: '에이피알',
+      corp_code: '00421045',
+      stock_code: '352480',
+      corp_cls: 'K',
+      report_nm: '잠정실적(공정공시)',
+      rcept_dt: '20260521',
+      flr_nm: '에이피알',
+      rm: '코',
     },
     {
-      rcpNo: '20260521002345',
-      corpName: '삼성전자',
-      stockCode: '005930',
-      corpCls: 'Y',
-      reportNm: '주요사항보고서(유상증자결정)',
-      rceptDt: '20260521',
-      flrNm: '삼성전자',
-      rmk: '유',
+      rcept_no: '20260521002345',
+      corp_name: '삼성전자',
+      corp_code: '00126380',
+      stock_code: '005930',
+      corp_cls: 'Y',
+      report_nm: '주요사항보고서(유상증자결정)',
+      rcept_dt: '20260521',
+      flr_nm: '삼성전자',
+      rm: '유',
     },
     {
-      rcpNo: '20260521003456',
-      corpName: 'SK하이닉스',
-      stockCode: '000660',
-      corpCls: 'Y',
-      reportNm: '잠정실적(공정공시)',
-      rceptDt: '20260521',
-      flrNm: 'SK하이닉스',
-      rmk: '유',
+      rcept_no: '20260521003456',
+      corp_name: 'SK하이닉스',
+      corp_code: '00164779',
+      stock_code: '000660',
+      corp_cls: 'Y',
+      report_nm: '잠정실적(공정공시)',
+      rcept_dt: '20260521',
+      flr_nm: 'SK하이닉스',
+      rm: '유',
     },
     {
-      rcpNo: '20260521004567',
-      corpName: '카카오',
-      stockCode: '035720',
-      corpCls: 'Y',
-      reportNm: '단일판매·공급계약체결',
-      rceptDt: '20260521',
-      flrNm: '카카오',
-      rmk: '유',
+      rcept_no: '20260521004567',
+      corp_name: '카카오',
+      corp_code: '00166894',
+      stock_code: '035720',
+      corp_cls: 'Y',
+      report_nm: '단일판매·공급계약체결',
+      rcept_dt: '20260521',
+      flr_nm: '카카오',
+      rm: '유',
     },
     {
-      rcpNo: '20260521005678',
-      corpName: 'LG에너지솔루션',
-      stockCode: '373220',
-      corpCls: 'Y',
-      reportNm: '잠정실적(공정공시)',
-      rceptDt: '20260521',
-      flrNm: 'LG에너지솔루션',
-      rmk: '유',
+      rcept_no: '20260521005678',
+      corp_name: 'LG에너지솔루션',
+      corp_code: '01148993',
+      stock_code: '373220',
+      corp_cls: 'Y',
+      report_nm: '잠정실적(공정공시)',
+      rcept_dt: '20260521',
+      flr_nm: 'LG에너지솔루션',
+      rm: '유',
     },
     {
-      rcpNo: '20260521006789',
-      corpName: '현대차',
-      stockCode: '005380',
-      corpCls: 'Y',
-      reportNm: '주요사항보고서(자기주식취득결정)',
-      rceptDt: '20260521',
-      flrNm: '현대차',
-      rmk: '유',
+      rcept_no: '20260521006789',
+      corp_name: '현대차',
+      corp_code: '00164742',
+      stock_code: '005380',
+      corp_cls: 'Y',
+      report_nm: '주요사항보고서(자기주식취득결정)',
+      rcept_dt: '20260521',
+      flr_nm: '현대차',
+      rm: '유',
     },
     {
-      rcpNo: '20260521007890',
-      corpName: 'NAVER',
-      stockCode: '035420',
-      corpCls: 'Y',
-      reportNm: '단일판매·공급계약체결',
-      rceptDt: '20260521',
-      flrNm: 'NAVER',
-      rmk: '유',
+      rcept_no: '20260521007890',
+      corp_name: 'NAVER',
+      corp_code: '00266961',
+      stock_code: '035420',
+      corp_cls: 'Y',
+      report_nm: '단일판매·공급계약체결',
+      rcept_dt: '20260521',
+      flr_nm: 'NAVER',
+      rm: '유',
     },
     {
-      rcpNo: '20260521008901',
-      corpName: '셀트리온',
-      stockCode: '068270',
-      corpCls: 'Y',
-      reportNm: '임상시험결과보고(자진공시)',
-      rceptDt: '20260521',
-      flrNm: '셀트리온',
-      rmk: '유',
+      rcept_no: '20260521008901',
+      corp_name: '셀트리온',
+      corp_code: '00112218',
+      stock_code: '068270',
+      corp_cls: 'Y',
+      report_nm: '임상시험결과보고(자진공시)',
+      rcept_dt: '20260521',
+      flr_nm: '셀트리온',
+      rm: '유',
     },
   ];
 }

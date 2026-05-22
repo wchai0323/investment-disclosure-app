@@ -87,13 +87,15 @@ export interface DartApiResponse {
   list: DartDisclosure[];
 }
 
+// Field names match the real DART OpenAPI response exactly (snake_case)
 export interface DartDisclosure {
-  rcpNo: string;
-  corpName: string;
-  stockCode: string;
-  corpCls: string;
-  reportNm: string;
-  rceptDt: string;
-  flrNm: string;
-  rmk: string;
+  rcept_no: string;
+  corp_name: string;
+  corp_code: string;
+  stock_code: string;
+  corp_cls: string;
+  report_nm: string;
+  flr_nm: string;
+  rcept_dt: string;
+  rm: string;
 }

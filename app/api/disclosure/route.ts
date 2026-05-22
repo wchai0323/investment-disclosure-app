@@ -10,17 +10,20 @@ export async function GET(request: NextRequest) {
   try {
     const rawList = await fetchDisclosures({ corpCode, page_no: pageNo, page_count: 20 });
 
-    const disclosures: Disclosure[] = rawList.map((item) => ({
-      rcpNo: item.rcpNo,
-      corpName: item.corpName,
-      stockCode: item.stockCode,
-      corpCls: item.corpCls,
-      reportNm: item.reportNm,
-      rceptDt: item.rceptDt,
-      rceptTm: generateTime(item.rceptDt),
-      flrNm: item.flrNm,
-      rmk: item.rmk,
-    }));
+    // Map DART snake_case fields → app Disclosure type
+    const disclosures: Disclosure[] = rawList
+      .filter((item) => item.stock_code) // only listed stocks
+      .map((item) => ({
+        rcpNo: item.rcept_no,
+        corpName: item.corp_name,
+        stockCode: item.stock_code,
+        corpCls: item.corp_cls,
+        reportNm: item.report_nm,
+        rceptDt: item.rcept_dt,
+        rceptTm: generateTime(item.rcept_dt),
+        flrNm: item.flr_nm,
+        rmk: item.rm,
+      }));
 
     return NextResponse.json({ disclosures, total: disclosures.length });
   } catch (error) {
@@ -29,6 +32,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Deterministic pseudo-time from date string (used when DART doesn't provide exact time)
 function generateTime(date: string): string {
   const hours = ['09', '10', '11', '14', '15', '16', '17'];
   const mins = ['00', '05', '10', '15', '20', '25', '30', '31', '45', '52'];
