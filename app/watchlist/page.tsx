@@ -2,53 +2,24 @@
 
 import { useState } from 'react';
 import { WatchlistItem } from '@/lib/types';
-import { Search, Star, StarOff, Plus, X, TrendingUp, TrendingDown, Calendar, Bell } from 'lucide-react';
+import { useWatchlist } from '@/hooks/useWatchlist';
+import { Search, Star, StarOff, Plus, X, TrendingUp, TrendingDown, Calendar, Bell, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
-const INITIAL_WATCHLIST: WatchlistItem[] = [
-  {
-    stockCode: '352480',
-    corpName: '에이피알',
-    market: 'KOSDAQ',
-    nextEarningsDate: '2026-07-15',
-    currentPrice: 312000,
-    priceChange: 8500,
-    priceChangePercent: 2.8,
-    addedAt: '2026-04-01',
-  },
-  {
-    stockCode: '005930',
-    corpName: '삼성전자',
-    market: 'KOSPI',
-    nextEarningsDate: '2026-05-29',
-    currentPrice: 68400,
-    priceChange: -600,
-    priceChangePercent: -0.87,
-    addedAt: '2026-03-15',
-  },
-  {
-    stockCode: '000660',
-    corpName: 'SK하이닉스',
-    market: 'KOSPI',
-    nextEarningsDate: '2026-07-25',
-    currentPrice: 201000,
-    priceChange: 5000,
-    priceChangePercent: 2.55,
-    addedAt: '2026-04-10',
-  },
-];
-
 const SEARCH_RESULTS: WatchlistItem[] = [
-  { stockCode: '035420', corpName: 'NAVER', market: 'KOSPI', currentPrice: 198000, priceChange: 2500, priceChangePercent: 1.28, addedAt: '' },
-  { stockCode: '035720', corpName: '카카오', market: 'KOSPI', currentPrice: 38250, priceChange: -750, priceChangePercent: -1.92, addedAt: '' },
-  { stockCode: '373220', corpName: 'LG에너지솔루션', market: 'KOSPI', currentPrice: 356000, priceChange: 4000, priceChangePercent: 1.14, addedAt: '' },
-  { stockCode: 'NVDA', corpName: 'NVIDIA', market: 'NASDAQ', currentPrice: 912, priceChange: 24, priceChangePercent: 2.7, addedAt: '' },
-  { stockCode: 'AAPL', corpName: 'Apple', market: 'NASDAQ', currentPrice: 195, priceChange: -2, priceChangePercent: -1.02, addedAt: '' },
-  { stockCode: 'MSFT', corpName: 'Microsoft', market: 'NASDAQ', currentPrice: 425, priceChange: 5, priceChangePercent: 1.19, addedAt: '' },
+  { stockCode: '352480', corpName: '에이피알',       market: 'KOSDAQ', currentPrice: 312000, priceChange: 8500,  priceChangePercent: 2.8,   addedAt: '' },
+  { stockCode: '005930', corpName: '삼성전자',       market: 'KOSPI',  currentPrice: 68400,  priceChange: -600,  priceChangePercent: -0.87, addedAt: '' },
+  { stockCode: '000660', corpName: 'SK하이닉스',     market: 'KOSPI',  currentPrice: 201000, priceChange: 5000,  priceChangePercent: 2.55,  addedAt: '' },
+  { stockCode: '035420', corpName: 'NAVER',          market: 'KOSPI',  currentPrice: 198000, priceChange: 2500,  priceChangePercent: 1.28,  addedAt: '' },
+  { stockCode: '035720', corpName: '카카오',         market: 'KOSPI',  currentPrice: 38250,  priceChange: -750,  priceChangePercent: -1.92, addedAt: '' },
+  { stockCode: '373220', corpName: 'LG에너지솔루션', market: 'KOSPI',  currentPrice: 356000, priceChange: 4000,  priceChangePercent: 1.14,  addedAt: '' },
+  { stockCode: 'NVDA',   corpName: 'NVIDIA',         market: 'NASDAQ', currentPrice: 912,    priceChange: 24,    priceChangePercent: 2.7,   addedAt: '' },
+  { stockCode: 'AAPL',   corpName: 'Apple',          market: 'NASDAQ', currentPrice: 195,    priceChange: -2,    priceChangePercent: -1.02, addedAt: '' },
+  { stockCode: 'MSFT',   corpName: 'Microsoft',      market: 'NASDAQ', currentPrice: 425,    priceChange: 5,     priceChangePercent: 1.19,  addedAt: '' },
 ];
 
 export default function WatchlistPage() {
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>(INITIAL_WATCHLIST);
+  const { watchlist, addToWatchlist, removeFromWatchlist, isLoading } = useWatchlist();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
@@ -59,14 +30,10 @@ export default function WatchlistPage() {
         s.stockCode.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const addToWatchlist = (item: WatchlistItem) => {
-    setWatchlist((prev) => [...prev, { ...item, addedAt: new Date().toISOString() }]);
+  const handleAdd = (item: WatchlistItem) => {
+    addToWatchlist(item);
     setSearchQuery('');
     setShowSearch(false);
-  };
-
-  const removeFromWatchlist = (stockCode: string) => {
-    setWatchlist((prev) => prev.filter((w) => w.stockCode !== stockCode));
   };
 
   const getDaysUntilEarnings = (dateStr?: string) => {
@@ -116,7 +83,7 @@ export default function WatchlistPage() {
                   {filteredSearch.slice(0, 5).map((item) => (
                     <button
                       key={item.stockCode}
-                      onClick={() => addToWatchlist(item)}
+                      onClick={() => handleAdd(item)}
                       className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800 last:border-0 transition-colors"
                     >
                       <div className="text-left">
@@ -143,7 +110,11 @@ export default function WatchlistPage() {
       </header>
 
       <div className="max-w-lg mx-auto px-4 pb-24">
-        {watchlist.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-6 w-6 text-gray-400 animate-spin" />
+          </div>
+        ) : watchlist.length === 0 ? (
           <div className="text-center py-20">
             <Star className="h-12 w-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
             <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">관심종목이 없습니다</p>
@@ -190,7 +161,6 @@ export default function WatchlistPage() {
                     </div>
                   </div>
 
-                  {/* Earnings & Alerts */}
                   <div className="mt-3 flex items-center gap-2 flex-wrap">
                     {item.nextEarningsDate && daysUntil !== null && (
                       <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${
